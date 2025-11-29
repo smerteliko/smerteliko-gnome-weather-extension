@@ -1,12 +1,13 @@
 {
-  "name": "MyWeather",
+  "name": "Smerteliko Gnome Weather Extension",
   "description": "Weather from open weather map",
-  "uuid": "myweather",
+  "uuid": "smerteliko-gnome-weather-extension@smerteliko.com",
   "shell-version": [
-    "42"
+    "45",
+    "46"
   ],
-  "url": "",
-  "version": 1,
-  "settings-schema": "org.gnome.shell.extensions.myweather",
-  "gettext-domain": "myweather"
+  "url": "https://github.com/smerteliko/smerteliko-gnome-weather-extension",
+  "version": 2,
+  "settings-schema": "org.gnome.shell.extensions.smerteliko-gnome-weather-extension",
+  "gettext-domain": "smerteliko-gnome-weather-extension"
 }

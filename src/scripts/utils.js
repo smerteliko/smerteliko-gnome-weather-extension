@@ -1,58 +1,20 @@
-const { Soup, GLib } = imports.gi;
-const ByteArray = imports.byteArray;
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const Gettext = imports.gettext.domain(Me.metadata['gettext-domain']);
-const _ = Gettext.gettext;
+// utils.js (ES Module)
 
+import GLib from 'gi://GLib';
+import Soup from 'gi://Soup';
+// Assume getTranslation is available via shared context or imported where needed.
+// For translation support in constants/messages, we must define the gettext context here.
+import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
-var WeatherProvider = {
-    OPENWEATHERMAP: 0
-};
-var WeatherUnits = {
-    CELSIUS:        0,
-    FAHRENHEIT:     1,
-    KELVIN:         2,
-    RANKINE:        3,
-    REAUMUR:        4,
-    ROEMER:         5,
-    DELISLE:        6,
-    NEWTON:         7
-};
-var WeatherWindSpeedUnits = {
-    KPH:        0,
-    MPH:        1,
-    MPS:        2,
-    KNOTS:      3,
-    FPS:        4,
-    BEAUFORT:   5
-};
+// --- CONSTANTS ---
+export const OWM_BASE_URL = 'https://api.openweathermap.org/data/3.0/weather';
 
+export const WeatherUnits = { CELSIUS: 0, FAHRENHEIT: 1, KELVIN: 2, RANKINE: 3, REAUMUR: 4, ROEMER: 5, DELISLE: 6, NEWTON: 7 };
+export const WeatherWindSpeedUnits = { KPH: 0, MPH: 1, MPS: 2, KNOTS: 3, FPS: 4, BEAUFORT: 5 };
+export const WeatherPressureUnits = { HPA: 0, INHG: 1, BAR: 2, PA: 3, KPA: 4, ATM: 5, AT: 6, TORR: 7, PSI: 8, MMHG: 9, MBAR: 10 };
+export const WeatherPosition = { CENTER: 0, RIGHT: 1, LEFT: 2 };
 
-var WeatherPressureUnits = {
-    HPA:    0,
-    INHG:   1,
-    BAR:    2,
-    PA:     3,
-    KPA:    4,
-    ATM:    5,
-    AT:     6,
-    TORR:   7,
-    PSI:    8,
-    MMHG:   9,
-    MBAR:   10
-};
-
-var WeatherPosition = {
-    CENTER:     0,
-    RIGHT:      1,
-    LEFT:       2
-};
-
-
-
-// Map OpenWeatherMap icon codes to icon names
-var IconMap = {
+export const IconMap = IconMap = {
     "01d": "weather-clear-symbolic",             // "clear sky"
     "02d": "weather-few-clouds-symbolic",        // "few clouds"
     "03d": "weather-few-clouds-symbolic",        // "scattered clouds"
@@ -71,15 +33,77 @@ var IconMap = {
     "11n": "weather-storm-symbolic",             // "thunderstorm night"
     "13n": "weather-snow-symbolic",              // "snow night"
     "50n": "weather-fog-symbolic"                // "mist night"
+};
+
+// --- CORE CONVERSION FUNCTIONS ---
+
+function buildQueryString(params) {
+    return Object.keys(params).map(key => 
+        `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`
+    ).join('&');
 }
 
-/**
- *  Codes from openweathermap API documentation
- * @param code
- * @returns {*}
- */
-function getWeatherCondition(code) {
-    switch (parseInt(code, 10)) {                              /**  CODE   |  DESCRIPTION                      */
+export function loadJsonAsync(url, params, uuid, version) {
+    return new Promise((resolve, reject) => {
+        let userAgent = `${uuid}/${version || '1.0'}`;
+        let fullUrl = `${url}?${buildQueryString(params)}`;
+
+        const uri = GLib.Uri.parse(fullUrl, GLib.UriFlags.NONE);
+        const message = Soup.Message.new_from_uri('GET', uri);
+        message.set_request_header('User-Agent', userAgent, true);
+
+        const session = Soup.Session.new();
+
+        session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null, (session, res) => {
+            try {
+                let response = session.send_and_read_finish(res);
+                if (message.status !== Soup.Status.OK) {
+                    let errorBody = response ? new TextDecoder().decode(response.get_data()) : 'Unknown API Error';
+                    try {
+                        const errorJson = JSON.parse(errorBody);
+                        errorBody = errorJson.message || errorBody;
+                    } catch (e) {/* Ignore JSON parse error */}
+                    throw new Error(`HTTP Error ${message.status_code}: ${errorBody}`);
+                }
+                let json = JSON.parse(new TextDecoder().decode(response.get_data()));
+                resolve(json);
+            } catch (e) {
+                reject(e);
+            }
+        });
+    });
+}
+
+// --- UNIT FORMATTING LOGIC ---
+export function unitToUnicode(units) { 
+    if (units === WeatherUnits.FAHRENHEIT)
+        return _('\u00B0F');
+    else if (units === WeatherUnits.KELVIN)
+        return _('K');
+    else if (units === WeatherUnits.RANKINE)
+        return _('\u00B0Ra');
+    else if (units === WeatherUnits.REAUMUR)
+        return _('\u00B0R\u00E9');
+    else if (units === WeatherUnits.ROEMER)
+        return _('\u00B0R\u00F8');
+    else if (units === WeatherUnits.DELISLE)
+        return _('\u00B0De');
+    else if (units === WeatherUnits.NEWTON)
+        return _('\u00B0N');
+    else
+        return _('\u00B0C'); 
+}
+export function toFahrenheit(t, d) { return ((Number(t) * 1.8) + 32).toFixed(d); }
+export function toKelvin(t, d) { return (Number(t) + 273.15).toFixed(d); }
+export function toRankine(t, d) { return ((Number(t) * 1.8) + 491.67).toFixed(d); }
+export function toReaumur(t, d) { return (Number(t) * 0.8).toFixed(d); }
+export function toRoemer(t, d) { return ((Number(t) * 21 / 40) + 7.5).toFixed(d); }
+export function toDelisle(t, d) { return ((100 - Number(t)) * 1.5).toFixed(d); }
+export function toNewton(t, d) { return (Number(t) - 0.33).toFixed(d); }
+export function toInHg(p, d) { return (p / 33.86530749).toFixed(d); }
+
+export function getWeatherCondition(code) {
+    switch (parseInt(code, 10)) {                                   /**  CODE   |  DESCRIPTION                      */
         case 200: return _('Thunderstorm with Light Rain');         /**  200    |  Thunderstorm with light rain     */
         case 201: return _('Thunderstorm with Rain');               /**  201    |  Thunderstorm with rain           */
         case 202: return _('Thunderstorm with Heavy Rain');         /**  202    |  Thunderstorm with heavy rain     */
@@ -142,110 +166,6 @@ function getWeatherCondition(code) {
 
 /**
  *
- * @param units
- * @returns {*}
- */
-function unitToUnicode(units) {
-    if (units === WeatherUnits.FAHRENHEIT)
-        return _('\u00B0F');
-    else if (units === WeatherUnits.KELVIN)
-        return _('K');
-    else if (units === WeatherUnits.RANKINE)
-        return _('\u00B0Ra');
-    else if (units === WeatherUnits.REAUMUR)
-        return _('\u00B0R\u00E9');
-    else if (units === WeatherUnits.ROEMER)
-        return _('\u00B0R\u00F8');
-    else if (units === WeatherUnits.DELISLE)
-        return _('\u00B0De');
-    else if (units === WeatherUnits.NEWTON)
-        return _('\u00B0N');
-    else
-        return _('\u00B0C');
-}
-
-/**
- *
- * @param t
- * @param decimalPlaces
- * @returns {string}
- */
-function toFahrenheit(t, decimalPlaces) {
-    return ((Number(t) * 1.8) + 32).toFixed(decimalPlaces);
-}
-
-/**
- *
- * @param t
- * @param decimalPlaces
- * @returns {string}
- */
-function toKelvin(t, decimalPlaces) {
-    return (Number(t) + 273.15).toFixed(decimalPlaces);
-}
-
-/**
- *
- * @param t
- * @param decimalPlaces
- * @returns {string}
- */
-function toRankine(t, decimalPlaces) {
-    return ((Number(t) * 1.8) + 491.67).toFixed(decimalPlaces);
-}
-
-/**
- *
- * @param t
- * @param decimalPlaces
- * @returns {string}
- */
-function toReaumur(t, decimalPlaces) {
-    return (Number(t) * 0.8).toFixed(decimalPlaces);
-}
-
-/**
- *
- * @param t
- * @param decimalPlaces
- * @returns {string}
- */
-function toRoemer(t, decimalPlaces) {
-    return ((Number(t) * 21 / 40) + 7.5).toFixed(decimalPlaces);
-}
-
-/**
- *
- * @param t
- * @param decimalPlaces
- * @returns {string}
- */
-function toDelisle(t, decimalPlaces) {
-    return ((100 - Number(t)) * 1.5).toFixed(decimalPlaces);
-}
-
-/**
- *
- * @param t
- * @param decimalPlaces
- * @returns {string}
- */
-function toNewton(t, decimalPlaces) {
-    return (Number(t) - 0.33).toFixed(decimalPlaces);
-}
-
-/**
- *
- * @param p
- * @param decimalPlaces
- * @returns {string}
- */
-function toInHg(p /*, t*/, decimalPlaces) {
-    return (p / 33.86530749).toFixed(decimalPlaces);
-}
-
-/**
- *
  * @param w
  * @param t
  * @returns {string|string}
@@ -293,103 +213,12 @@ function toBeaufort(w, t) {
 
 /**
  *
- * @param abr
- * @returns {*}
- */
-function getLocaleDay(abr) {
-    let days = [_('Sunday'), _('Monday'), _('Tuesday'), _('Wednesday'), _('Thursday'), _('Friday'), _('Saturday')];
-    return days[abr];
-}
-
-/**
- *
- * @param deg
- * @param direction
- * @returns {string|*}
- */
-function getWindDirection(deg, direction) {
-    let arrows = ["\u2193", "\u2199", "\u2190", "\u2196", "\u2191", "\u2197", "\u2192", "\u2198"];
-    let letters = [_('N'), _('NE'), _('E'), _('SE'), _('S'), _('SW'), _('W'), _('NW')];
-    let idx = Math.round(deg / 45) % arrows.length;
-    return (direction) ? arrows[idx] : letters[idx];
-}
-
-/**
- *
- * @param pressure
- * @param units
- * @param decimalPlaces
- * @returns {string}
- */
-function formatPressure(pressure, units, decimalPlaces) {
-    let pressureUnit = _('hPa');
-    switch (units) {
-        case WeatherPressureUnits.INHG:
-            pressure = this.toInHg(pressure,decimalPlaces);
-            pressureUnit = _("inHg");
-            break;
-
-        case WeatherPressureUnits.HPA:
-            pressure = pressure.toFixed(decimalPlaces);
-            pressureUnit = _("hPa");
-            break;
-
-        case WeatherPressureUnits.BAR:
-            pressure = (pressure / 1000).toFixed(decimalPlaces);
-            pressureUnit = _("bar");
-            break;
-
-        case WeatherPressureUnits.PA:
-            pressure = (pressure * 100).toFixed(decimalPlaces);
-            pressureUnit = _("Pa");
-            break;
-
-        case WeatherPressureUnits.KPA:
-            pressure = (pressure / 10).toFixed(decimalPlaces);
-            pressureUnit = _("kPa");
-            break;
-
-        case WeatherPressureUnits.ATM:
-            pressure = (pressure * 0.000986923267).toFixed(decimalPlaces);
-            pressureUnit = _("atm");
-            break;
-
-        case WeatherPressureUnits.AT:
-            pressure = (pressure * 0.00101971621298).toFixed(decimalPlaces);
-            pressureUnit = _("at");
-            break;
-
-        case WeatherPressureUnits.TORR:
-            pressure = (pressure * 0.750061683).toFixed(decimalPlaces);
-            pressureUnit = _("Torr");
-            break;
-
-        case WeatherPressureUnits.PSI:
-            pressure = (pressure * 0.0145037738).toFixed(decimalPlaces);
-            pressureUnit = _("psi");
-            break;
-
-        case WeatherPressureUnits.MMHG:
-            pressure = (pressure * 0.750061683).toFixed(decimalPlaces);
-            pressureUnit = _("mmHg");
-            break;
-
-        case WeatherPressureUnits.MBAR:
-            pressure = pressure.toFixed(decimalPlaces);
-            pressureUnit = _("mbar");
-            break;
-    }
-    return parseFloat(pressure).toLocaleString(this.locale) + ' ' + pressureUnit;
-}
-
-/**
- *
  * @param temperature
  * @param units
  * @param decimalPlaces
  * @returns {string}
  */
-function formatTemperature(temperature, units, decimalPlaces) {
+export function formatTemperature(temperature, units, decimalPlaces) {
     switch (units) {
         case WeatherUnits.FAHRENHEIT:
             temperature = this.toFahrenheit(temperature, decimalPlaces);
@@ -423,7 +252,7 @@ function formatTemperature(temperature, units, decimalPlaces) {
             temperature = this.toNewton(temperature, decimalPlaces);
             break;
     }
-    return parseFloat(temperature).toLocaleString(this.locale).replace('-', '\u2212') + ' ' + unitToUnicode(units);
+    return parseFloat(temperature).toLocaleString(LOCALE).replace('-', '\u2212') + ' ' + unitToUnicode(units);
 }
 
 /**
@@ -434,7 +263,7 @@ function formatTemperature(temperature, units, decimalPlaces) {
  * @param speedUnits
  * @returns {string}
  */
-function formatWind(speed, direction, decimalPlaces, speedUnits) {
+export function formatWind(speed, direction, decimalPlaces, speedUnits) {
     let conv_MPSinMPH = 2.23693629;
     let conv_MPSinKPH = 3.6;
     let conv_MPSinKNOTS = 1.94384449;
@@ -477,50 +306,9 @@ function formatWind(speed, direction, decimalPlaces, speedUnits) {
     }
 
     if (speed === 0 || !direction) {
-        return parseFloat(speed).toLocaleString(this.locale) + ' ' + unit;
+        return parseFloat(speed).toLocaleString(LOCALE) + ' ' + unit;
     }
 
     // i.e. speed > 0 && direction
-    return direction + ' ' + parseFloat(speed).toLocaleString(this.locale) + ' ' + unit;
+    return direction + ' ' + parseFloat(speed).toLocaleString(LOCALE) + ' ' + unit;
 }
-
-/**
- *
- * @param url
- * @param params
- * @returns {Promise<unknown>}
- */
-function loadJsonAsync(url, params) {
-    return new Promise((resolve, reject) => {
-        // Create user-agent string from uuid and the version
-        let userAgent = Me.metadata.uuid;
-        if (Me.metadata.version !== undefined && Me.metadata.version.toString().trim() !== '') {
-            userAgent += '/';
-            userAgent += Me.metadata.version.toString();
-        }
-
-        let httpSession = new Soup.Session();
-        // add trailing space, so libsoup adds its own user-agent
-        httpSession.user_agent = userAgent + ' ';
-
-        let message = Soup.form_request_new_from_hash('GET', url, params);
-
-        httpSession.queue_message(message, function(httpSession, message) {
-            try {
-                if (!message.response_body.data) {
-                    return;
-                }
-                let jp = JSON.parse(message.response_body.data);
-                resolve(jp)
-            } catch (e) {
-                httpSession.abort();
-                reject(e);
-
-            }
-        });
-    });
-}
-
-
-
-
