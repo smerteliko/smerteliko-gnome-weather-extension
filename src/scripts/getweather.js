@@ -1,134 +1,29 @@
 import GLib from "gi://GLib";
 import Soup from "gi://Soup";
-import { getSoupSession } from "./myloc.js";
-import { getIconName, gettextCondition } from "./weathericons.js";
+import * as Utils from "./utils.js";
+
+import {
+  gettext as _
+} from "resource:///org/gnome/shell/extensions/extension.js";
 
 export const DEFAULT_KEYS =
 [
-  ""
+  "b4d6a638dd4af5e668ccd8574fd90cec",
+  "7a4baea97ef946c7864221259240804",
+  "ES25QFD3CP93EZ9DMSJ72MAX7"
 ];
-
 export class TooManyReqError extends Error
 {
   provider;
   constructor(provider)
   {
-    super(`Provider ${getWeatherProviderName(provider)} has received too many requests.`);
+    super(`Provider ${Utils.getWeatherProviderName(provider)} has received too many requests.`);
     this.provider = provider;
     this.name = "TooManyReqError";
   }
 }
 
-/**
-  * @enum {number}
-  */
-export const WeatherProvider =
-{
-  DEFAULT: 0,
-  OPENWEATHERMAP: 1,
-  COUNT: 1
-};
 
-// Corresponds to Weather providers
-export const ForecastDaysSupport =
-{
-  0: 0,
-  1: 4,
-  2: 2,
-  3: 14,
-  4: 15
-}
-
-export function getWeatherProviderName(prov)
-{
-  switch(prov)
-  {
-    case WeatherProvider.OPENWEATHERMAP:
-      return "OpenWeatherMap";
-    default:
-      return null;
-  }
-}
-
-export function getWeatherProviderUrl(prov)
-{
-  switch(prov)
-  {
-    case WeatherProvider.OPENWEATHERMAP:
-      return "https://openweathermap.org/";
-    default:
-      return null;
-  }
-}
-
-/**
-  * Convert a string in the form of '00:00 AM/PM' to milliseconds since
-  * 12:00 AM (0:00).
-  * @param {string} timeString
-  * @returns {number}
-  */
-function timeToMs(timeString)
-{
-  let isPm = timeString.endsWith("PM");
-  let m = timeString.match(/^([0-9]{2}):([0-9]{2})/);
-  return m[1] * 3600000 + m[2] * 60000 + (isPm ? 12 * 3600000 : 0);
-}
-
-// Choose a random provider each time to try to avoid rate limiting
-let randomProvider = 0;
-function chooseRandomProvider(settings)
-{
-  // WeatherAPI.com doesn't support as many forecast days as OpenWeatherMap
-  let forecastDays = settings.get_int("days-forecast");
-  let rand = Math.floor(Math.random() * WeatherProvider.COUNT + 1);
-
-  // Should be OpenMeteo in the future
-  if(ForecastDaysSupport[rand] < forecastDays) rand = WeatherProvider.OPENWEATHERMAP;
-  
-  randomProvider = rand;
-  // Visual Crossing doesn't work right now (blocked if reached rate limit)
-  if(rand === WeatherProvider.VISUALCROSSING) weatherProviderNotWorking(settings);
-}
-
-export function getWeatherProvider(settings)
-{
-  let prov = settings.get_enum("weather-provider");
-  if(prov === WeatherProvider.DEFAULT)
-  {
-    if(!randomProvider) chooseRandomProvider(settings);
-    return randomProvider;
-  }
-  else return prov;
-}
-
-let providerNotWorking = 0;
-/**
-  * Cycles the weather provider if weather provider is in random mode.
-  * @returns {boolean} `true` if the weather provider changed and the operation
-  *                    should be tried again, otherwise `false` if nothing changed.
-  */
-export function weatherProviderNotWorking(settings)
-{
-  let prov = settings.get_enum("weather-provider");
-  if(prov === WeatherProvider.DEFAULT)
-  {
-    if(!providerNotWorking) providerNotWorking = randomProvider;
-    // if we've already cycled through them all, give up
-    else if(randomProvider === providerNotWorking) return false;
-
-    randomProvider++;
-
-    // Visual Crossing doesn't work right now (blocked if reached rate limit)
-    if(randomProvider === WeatherProvider.VISUALCROSSING) randomProvider++;
-
-    if(randomProvider > WeatherProvider.COUNT) randomProvider = 1;
-
-    console.log("inc rand " + typeof randomProvider + randomProvider);
-
-    return true;
-  }
-  else return false;
-}
 
 export class Weather
 {
@@ -197,19 +92,33 @@ export class Weather
   }
 
   /**
+    * @param {Gio.Settings} settings
+    * @param {string} locale
     * @returns {string}
     */
-  displayTemperature(extension)
+  displayTemperature(settings, locale)
   {
-    return extension.formatTemperature(this.#tempC);
+    return Utils.formatTemperature(
+        this.#tempC,
+        settings.get_enum("unit"),
+        settings.get_int("decimal-places"),
+        locale
+    );
   }
 
   /**
+    * @param {Gio.Settings} settings
+    * @param {string} locale
     * @returns {string}
     */
-  displayFeelsLike(extension)
+  displayFeelsLike(settings, locale)
   {
-    return extension.formatTemperature(this.#feelsLikeC);
+    return Utils.formatTemperature(
+        this.#feelsLikeC,
+        settings.get_enum("unit"),
+        settings.get_int("decimal-places"),
+        locale
+    );
   }
 
   /**
@@ -221,28 +130,54 @@ export class Weather
   }
 
   /**
+    * @param {Gio.Settings} settings
+    * @param {string} locale
     * @returns {string}
     */
-  displayPressure(extension)
+  displayPressure(settings, locale)
   {
-    return extension.formatPressure(this.#pressureMBar);
+    return Utils.formatPressure(
+        this.#pressureMBar,
+        settings.get_enum("pressure-unit"),
+        settings.get_int("pressure-decimal-places"),
+        locale
+    );
   }
 
   /**
+    * @param {Gio.Settings} settings
+    * @param {string} locale
     * @returns {string}
     */
-  displayWind(extension)
+  displayWind(settings, locale)
   {
-    let dir = extension.getWindDirection(this.#windDirDeg);
-    return extension.formatWind(this.#windMps, dir);
+    return Utils.formatWind(
+        this.#windMps,
+        settings.get_boolean("wind-direction"),
+        settings.get_int("speed-decimal-places"),
+        settings.get_enum("wind-speed-unit"),
+        this.#windDirDeg,
+        locale,
+        _
+    );
   }
 
   /**
+    * @param {Gio.Settings} settings
+    * @param {string} locale
     * @returns {string}
     */
-  displayGusts(extension)
+  displayGusts(settings, locale)
   {
-    return extension.formatWind(this.#gustsMps);
+    return Utils.formatWind(
+        this.#gustsMps,
+        settings.get_boolean("wind-direction"),
+        settings.get_int("speed-decimal-places"),
+        settings.get_enum("wind-speed-unit"),
+        this.#windDirDeg,
+        locale,
+        _
+    );
   }
 
   /**
@@ -258,7 +193,7 @@ export class Weather
     */
   displaySunrise(extension)
   {
-    return extension.formatTime(this.#sunrise);
+    return Utils.formatTime(this.#sunrise, extension.settings.get_enum("clock-format"), extension.locale, _);
   }
 
   /**
@@ -274,7 +209,7 @@ export class Weather
     */
   displaySunset(extension)
   {
-    return extension.formatTime(this.#sunset);
+    return Utils.formatTime(this.#sunset, extension.settings.get_enum("clock-format"), extension.locale, _);
   }
 
   /**
@@ -368,9 +303,14 @@ export class Forecast
     return (this.#end - this.#start) / 3600000;
   }
 
-  displayTime(extension)
+  /**
+   * @param {number} clockFormat
+   * @param {string} locale
+   * @returns {string}
+   */
+  displayTime(clockFormat, locale)
   {
-    return extension.formatTime(this.#start);
+    return Utils.formatTime(this.#start, clockFormat, locale, _);
   }
 
   weather()
@@ -379,45 +319,6 @@ export class Forecast
   }
 }
 
-async function loadJsonAsync(url, params)
-{
-  return new Promise((resolve, reject) =>
-  {
-    let httpSession = getSoupSession();
-    let paramsHash = Soup.form_encode_hash(params);
-    let message = Soup.Message.new_from_encoded_form("GET", url, paramsHash);
-
-    httpSession.send_and_read_async(
-      message,
-      GLib.PRIORITY_DEFAULT,
-      null,
-      (sess, result) =>
-      {
-        let bytes = sess.send_and_read_finish(result);
-
-        let jsonString = bytes.get_data();
-        if (jsonString instanceof Uint8Array)
-        {
-          jsonString = new TextDecoder().decode(jsonString);
-        }
-
-        try
-        {
-          if (!jsonString)
-          {
-            reject("No data in response body.");
-          }
-          resolve([message.status_code, JSON.parse(jsonString)]);
-        }
-        catch(e)
-        {
-          sess.abort();
-          reject(e);
-        }
-      }
-    );
-  });
-}
 
 function isSuccess(httpStatusCode)
 {
@@ -437,7 +338,7 @@ function getCondit(extension, code, condition, gettext)
   }
   else
   {
-    return gettextCondition(getWeatherProvider(extension.settings), code, gettext);
+    return Utils.getWeatherCondition(code,gettext);
   }
 }
 
@@ -453,9 +354,9 @@ export async function getWeatherInfo(extension, gettext)
   let lon = String(location[1]);
 
   let params;
-  switch(getWeatherProvider(extension.settings))
+  switch(Utils.getWeatherProvider(extension.settings))
   {
-    case WeatherProvider.OPENWEATHERMAP:
+    case Utils.WeatherProvider.OPENWEATHERMAP:
       {
         params =
         {
@@ -471,8 +372,8 @@ export async function getWeatherInfo(extension, gettext)
         let forecastResponse;
         try
         {
-          let cur = loadJsonAsync("https://api.openweathermap.org/data/3.0/weather", params);
-          let fore = loadJsonAsync("https://api.openweathermap.org/data/3.0/forecast", params);
+          let cur = Utils.loadJsonAsync("https://api.openweathermap.org/data/2.5/weather", params, extension.metadata.uuid, extension.metadata.version);
+          let fore = Utils.loadJsonAsync("https://api.openweathermap.org/data/2.5/forecast", params, extension.metadata.uuid, extension.metadata.version);
           let allResp = await Promise.all([ cur, fore ]);
           response = allResp[0];
           forecastResponse = allResp[1];
@@ -489,7 +390,7 @@ export async function getWeatherInfo(extension, gettext)
             `${response[0]}/${forecastResponse[0]}: '${response[1]?.message}'` +
             `/'${forecastResponse[1]?.message}'.`);
 
-          if(response[0] === 429 || forecastResponse[0] === 429) throw new TooManyReqError(WeatherProvider.OPENWEATHERMAP);
+          if(response[0] === 429 || forecastResponse[0] === 429) throw new TooManyReqError(Utils.WeatherProvider.OPENWEATHERMAP);
           else return null;
         }
 
@@ -546,7 +447,7 @@ export async function getWeatherInfo(extension, gettext)
                 h.wind?.speed,
                 h.wind?.deg,
                 h.wind?.gust,
-                getIconName(WeatherProvider.OPENWEATHERMAP, fIconId, isFNight, true),
+                Utils.getIconName(Utils.WeatherProvider.OPENWEATHERMAP, fIconId, isFNight, true),
                 getCondit(extension, h.weather[0].id, h.weather[0].description, gettext),
                 sunrise,
                 sunset
@@ -564,7 +465,7 @@ export async function getWeatherInfo(extension, gettext)
           json.wind?.speed,
           json.wind?.deg,
           json.wind?.gust,
-          getIconName(WeatherProvider.OPENWEATHERMAP, iconId, iconId[iconId.length - 1] === "n", true),
+          Utils.getIconName(Utils.WeatherProvider.OPENWEATHERMAP, iconId, iconId[iconId.length - 1] === "n", true),
           getCondit(extension, json.weather[0].id, json.weather[0].description, gettext),
           sunrise,
           sunset,
@@ -577,4 +478,3 @@ export async function getWeatherInfo(extension, gettext)
       return null;
   }
 }
-

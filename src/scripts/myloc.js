@@ -1,13 +1,13 @@
+import Geoclue from "gi://Geoclue";
 import GLib from "gi://GLib";
 import Soup from "gi://Soup";
-import Geoclue from "gi://Geoclue";
 
 // Chrome 120.0 on Windows (common user agent)
 export const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.3";
 
 let soupSession = null;
-let locationInfo = null;
+let locationInfo = { country: 'Russia', city:'Moscow'};
 let locationTime = new Date(0);
 let locationRefreshInterval = new Date(0).setMinutes(60);
 let lastMylocProv = -1;

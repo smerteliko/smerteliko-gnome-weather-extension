@@ -1,11 +1,11 @@
 UUID = smerteliko-gnome-weather-extension@smerteliko.com
-PKG_NAME = smerteliko-weather
+PKG_NAME = smerteliko-gnome-weather-extension
 SCHEMA_ID = org.gnome.shell.extensions.$(UUID)
 SRC_DIR = src
 
 MAIN_JS = extension.js prefs.js stylesheet.css
 PREFS_JS_FILES = generalPage.js layoutPage.js locationsPage.js searchResultsWindow.js
-SCRIPTS_JS_FILES = constants.js getweather.js locs.js myloc.js openweathermap.js utils.js weathericons.js
+SCRIPTS_JS_FILES = getweather.js locs.js myloc.js openweathermap.js utils.js
 
 EXTRA_DIRECTORIES = media
 

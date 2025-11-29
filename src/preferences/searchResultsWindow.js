@@ -6,8 +6,8 @@ import Soup from "gi://Soup";
 
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
-import { GeolocationProvider } from "../scripts/constants.js";
 import { Loc, settingsGetLocs, settingsSetLocs } from "../scripts/locs.js";
+import { GeolocationProvider } from '../scripts/utils.js';
 
 class SearchResultsWindow extends Adw.PreferencesWindow
 {

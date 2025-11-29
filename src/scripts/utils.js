@@ -4,17 +4,161 @@ import GLib from 'gi://GLib';
 import Soup from 'gi://Soup';
 // Assume getTranslation is available via shared context or imported where needed.
 // For translation support in constants/messages, we must define the gettext context here.
-import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { getSoupSession } from "./myloc.js";
 
 // --- CONSTANTS ---
-export const OWM_BASE_URL = 'https://api.openweathermap.org/data/3.0/weather';
+export const OWM_BASE_URL = 'https://api.openweathermap.org/data/2.5/weather';
 
-export const WeatherUnits = { CELSIUS: 0, FAHRENHEIT: 1, KELVIN: 2, RANKINE: 3, REAUMUR: 4, ROEMER: 5, DELISLE: 6, NEWTON: 7 };
-export const WeatherWindSpeedUnits = { KPH: 0, MPH: 1, MPS: 2, KNOTS: 3, FPS: 4, BEAUFORT: 5 };
-export const WeatherPressureUnits = { HPA: 0, INHG: 1, BAR: 2, PA: 3, KPA: 4, ATM: 5, AT: 6, TORR: 7, PSI: 8, MMHG: 9, MBAR: 10 };
-export const WeatherPosition = { CENTER: 0, RIGHT: 1, LEFT: 2 };
+export const LOCALE = GLib.get_language_names()[0];
 
-export const IconMap = IconMap = {
+export const WeatherUnits = {
+  CELSIUS: 0,
+  FAHRENHEIT: 1,
+  KELVIN: 2,
+  RANKINE: 3,
+  REAUMUR: 4,
+  ROEMER: 5,
+  DELISLE: 6,
+  NEWTON: 7,
+};
+
+export const WeatherWindSpeedUnits = {
+  KPH: 0,
+  MPH: 1,
+  MPS: 2,
+  KNOTS: 3,
+  FPS: 4,
+  BEAUFORT: 5,
+};
+
+export const WeatherPressureUnits = {
+  HPA: 0,
+  INHG: 1,
+  BAR: 2,
+  PA: 3,
+  KPA: 4,
+  ATM: 5,
+  AT: 6,
+  TORR: 7,
+  PSI: 8,
+  MMHG: 9,
+  MBAR: 10,
+};
+
+export const HiContrastStyle = {
+  NONE: 0,
+  WHITE: 1,
+  BLACK: 2
+};
+
+export const ClockFormat = {
+  _24H: 0,
+  _12H: 1,
+  SYSTEM: 2
+};
+
+export const WeatherPosition = {
+  CENTER: 0,
+  RIGHT: 1,
+  LEFT: 2,
+};
+
+// Keep enums in sync with GSettings schemas
+export const GeolocationProvider = {
+  OPENSTREETMAPS: 0,
+  MAPQUEST: 2,
+};
+
+
+export const WeatherProvider =
+{
+  DEFAULT: 0,
+  OPENWEATHERMAP: 1,
+  COUNT: 1
+};
+
+export const ForecastDaysSupport =
+{
+  0: 0,
+  1: 4,
+  2: 2,
+  3: 14,
+  4: 15
+}
+
+export function getWeatherProviderName(prov)
+{
+  switch(prov)
+  {
+    case WeatherProvider.OPENWEATHERMAP:
+      return "OpenWeatherMap";
+    default:
+      return null;
+  }
+}
+
+export function getWeatherProviderUrl(prov)
+{
+  switch(prov)
+  {
+    case WeatherProvider.OPENWEATHERMAP:
+      return "https://openweathermap.org/";
+    default:
+      return null;
+  }
+}
+
+// Choose a random provider each time to try to avoid rate limiting
+let randomProvider = 0;
+function chooseRandomProvider(settings)
+{
+  // WeatherAPI.com doesn't support as many forecast days as OpenWeatherMap
+  let forecastDays = settings.get_int("days-forecast");
+  let rand = Math.floor(Math.random() * WeatherProvider[COUNT + 1]);
+
+  // Should be OpenMeteo in the future
+  if(ForecastDaysSupport[rand] < forecastDays) rand =  WeatherProvider.OPENWEATHERMAP;
+  
+  randomProvider = rand;
+}
+
+export function getWeatherProvider(settings)
+{
+  let prov = settings.get_enum("weather-provider");
+  if(prov ===  WeatherProvider.DEFAULT)
+  {
+    if(!randomProvider) chooseRandomProvider(settings);
+    return randomProvider;
+  }
+  else return prov;
+}
+
+let providerNotWorking = 0;
+/**
+  * Cycles the weather provider if weather provider is in random mode.
+  * @returns {boolean} `true` if the weather provider changed and the operation
+  * should be tried again, otherwise `false` if nothing changed.
+  */
+export function weatherProviderNotWorking(settings)
+{
+  let prov = settings.get_enum("weather-provider");
+  if(prov ===  WeatherProvider.DEFAULT)
+  {
+    if(!providerNotWorking) providerNotWorking = randomProvider;
+    // if we've already cycled through them all, give up
+    else if(randomProvider === providerNotWorking) return false;
+
+    randomProvider++;
+
+
+    console.log("inc rand " + typeof randomProvider + randomProvider);
+
+    return true;
+  }
+  else return false;
+}
+
+export const IconMap  = {
     "01d": "weather-clear-symbolic",             // "clear sky"
     "02d": "weather-few-clouds-symbolic",        // "few clouds"
     "03d": "weather-few-clouds-symbolic",        // "scattered clouds"
@@ -43,39 +187,48 @@ function buildQueryString(params) {
     ).join('&');
 }
 
-export function loadJsonAsync(url, params, uuid, version) {
-    return new Promise((resolve, reject) => {
-        let userAgent = `${uuid}/${version || '1.0'}`;
-        let fullUrl = `${url}?${buildQueryString(params)}`;
+export async function loadJsonAsync(url, params)
+{
+  return new Promise((resolve, reject) =>
+  {
+    let httpSession = getSoupSession();
+    let paramsHash = Soup.form_encode_hash(params);
+    let message = Soup.Message.new_from_encoded_form("GET", url, paramsHash);
 
-        const uri = GLib.Uri.parse(fullUrl, GLib.UriFlags.NONE);
-        const message = Soup.Message.new_from_uri('GET', uri);
-        message.set_request_header('User-Agent', userAgent, true);
+    httpSession.send_and_read_async(
+      message,
+      GLib.PRIORITY_DEFAULT,
+      null,
+      (sess, result) =>
+      {
+        let bytes = sess.send_and_read_finish(result);
 
-        const session = Soup.Session.new();
+        let jsonString = bytes.get_data();
+        if (jsonString instanceof Uint8Array)
+        {
+          jsonString = new TextDecoder().decode(jsonString);
+        }
 
-        session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null, (session, res) => {
-            try {
-                let response = session.send_and_read_finish(res);
-                if (message.status !== Soup.Status.OK) {
-                    let errorBody = response ? new TextDecoder().decode(response.get_data()) : 'Unknown API Error';
-                    try {
-                        const errorJson = JSON.parse(errorBody);
-                        errorBody = errorJson.message || errorBody;
-                    } catch (e) {/* Ignore JSON parse error */}
-                    throw new Error(`HTTP Error ${message.status_code}: ${errorBody}`);
-                }
-                let json = JSON.parse(new TextDecoder().decode(response.get_data()));
-                resolve(json);
-            } catch (e) {
-                reject(e);
-            }
-        });
-    });
+        try
+        {
+          if (!jsonString)
+          {
+            reject("No data in response body.");
+          }
+          resolve([message.status_code, JSON.parse(jsonString)]);
+        }
+        catch(e)
+        {
+          sess.abort();
+          reject(e);
+        }
+      }
+    );
+  });
 }
 
 // --- UNIT FORMATTING LOGIC ---
-export function unitToUnicode(units) { 
+export function unitToUnicode(units, _) { 
     if (units === WeatherUnits.FAHRENHEIT)
         return _('\u00B0F');
     else if (units === WeatherUnits.KELVIN)
@@ -102,7 +255,7 @@ export function toDelisle(t, d) { return ((100 - Number(t)) * 1.5).toFixed(d); }
 export function toNewton(t, d) { return (Number(t) - 0.33).toFixed(d); }
 export function toInHg(p, d) { return (p / 33.86530749).toFixed(d); }
 
-export function getWeatherCondition(code) {
+export function getWeatherCondition(code, _) {
     switch (parseInt(code, 10)) {                                   /**  CODE   |  DESCRIPTION                      */
         case 200: return _('Thunderstorm with Light Rain');         /**  200    |  Thunderstorm with light rain     */
         case 201: return _('Thunderstorm with Rain');               /**  201    |  Thunderstorm with rain           */
@@ -164,13 +317,46 @@ export function getWeatherCondition(code) {
     }
 }
 
+
+/**
+  * @param {boolean} isNight
+  * @param {boolean} useSymbolic
+  */
+export function getIconName(provider, key)
+{
+  let name = '';
+  switch(provider)
+  {
+    case WeatherProvider.OPENWEATHERMAP:
+      name = IconMap[key];
+      break;
+  }
+
+
+  return name;
+}
+
+/**
+  * @returns {string}
+  */
+export function gettextCondition(provider, code, gettext)
+{
+  switch(provider)
+  {
+    case WeatherProvider.OPENWEATHERMAP:
+      return gettext(getWeatherCondition(code, gettext) ?? "Not available");
+    default:
+      return gettext("Not available");
+  }
+}
+
 /**
  *
  * @param w
  * @param t
  * @returns {string|string}
  */
-function toBeaufort(w, t) {
+function toBeaufort(w, t, _) {
     if (w < 0.3)
         return (!t) ? "0" : "(" + _("Calm") + ")";
 
@@ -256,59 +442,86 @@ export function formatTemperature(temperature, units, decimalPlaces) {
 }
 
 /**
- *
- * @param speed
- * @param direction
- * @param decimalPlaces
- * @param speedUnits
- * @returns {string}
+ * 
+ * @param {*} deg 
+ * @param {*} directionStyle 
+ * @returns 
  */
-export function formatWind(speed, direction, decimalPlaces, speedUnits) {
+export function getWindDirection(deg, directionStyle, _) {
+    let arrows = ["\u2193", "\u2199", "\u2190", "\u2196", "\u2191", "\u2197", "\u2192", "\u2198"];
+    let letters = [_('N'), _('NE'), _('E'), _('SE'), _('S'), _('SW'), _('W'), _('NW')];
+    let idx = Math.round(deg / 45) % arrows.length;
+    return (directionStyle) ? arrows[idx] : letters[idx];
+}
+/**
+ * 
+ * @param {*} speed 
+ * @param {*} directionStyle 
+ * @param {*} decimalPlaces 
+ * @param {*} speedUnits 
+ * @param {*} deg 
+ * @param {*} locale 
+ * @returns 
+ */
+
+export function formatWind(speed, directionStyle, decimalPlaces, speedUnits, deg, locale, _) {
+    let direction = getWindDirection(deg, directionStyle,_);
     let conv_MPSinMPH = 2.23693629;
     let conv_MPSinKPH = 3.6;
     let conv_MPSinKNOTS = 1.94384449;
     let conv_MPSinFPS = 3.2808399;
     let unit = _('m/s');
-
+    let s = Number(speed);
+    
     switch (speedUnits) {
-        case WeatherWindSpeedUnits.MPH:
-            speed = (speed * conv_MPSinMPH).toFixed(decimalPlaces);
-            unit = _('mph');
-            break;
-
-        case WeatherWindSpeedUnits.KPH:
-            speed = (speed * conv_MPSinKPH).toFixed(decimalPlaces);
-            unit = _('km/h');
-            break;
-
-        case WeatherWindSpeedUnits.MPS:
-            speed = speed.toFixed(decimalPlaces);
-            break;
-
-        case WeatherWindSpeedUnits.KNOTS:
-            speed = (speed * conv_MPSinKNOTS).toFixed(decimalPlaces);
-            unit = _('kn');
-            break;
-
-        case WeatherWindSpeedUnits.FPS:
-            speed = (speed * conv_MPSinFPS).toFixed(decimalPlaces);
-            unit = _('ft/s');
-            break;
-
-        case WeatherWindSpeedUnits.BEAUFORT:
-            speed = this.toBeaufort(speed);
-            unit = this.toBeaufort(speed, true);
-            break;
+        case WeatherWindSpeedUnits.MPH: s = (s * conv_MPSinMPH).toFixed(decimalPlaces); unit = _('mph'); break;
+        case WeatherWindSpeedUnits.KPH: s = (s * conv_MPSinKPH).toFixed(decimalPlaces); unit = _('km/h'); break;
+        case WeatherWindSpeedUnits.MPS: s = s.toFixed(decimalPlaces); unit = _('m/s'); break;
+        case WeatherWindSpeedUnits.KNOTS: s = (s * conv_MPSinKNOTS).toFixed(decimalPlaces); unit = _('kn'); break;
+        case WeatherWindSpeedUnits.FPS: s = (s * conv_MPSinFPS).toFixed(decimalPlaces); unit = _('ft/s'); break;
+        case WeatherWindSpeedUnits.BEAUFORT: unit = toBeaufort(s, true,_); s = toBeaufort(s, false, _); break;
     }
 
-    if (!speed) {
-        return '\u2013';
+    if (!s) return '\u2013';
+    
+    let formattedSpeed = parseFloat(s).toLocaleString(locale);
+    
+    if (speedUnits === WeatherWindSpeedUnits.BEAUFORT) {
+        // For Beaufort scale, 'unit' already contains the descriptive text/scale.
+        return `${formattedSpeed} ${unit}`; 
+    } else if (s === 0 || !direction) {
+        return `${formattedSpeed} ${unit}`;
+    } else {
+        return `${direction} ${formattedSpeed} ${unit}`;
     }
+}
 
-    if (speed === 0 || !direction) {
-        return parseFloat(speed).toLocaleString(LOCALE) + ' ' + unit;
+/**
+ * 
+ * @param {*} date 
+ * @param {*} clockFormat 
+ * @param {*} locale 
+ * @returns 
+ */
+export function formatTime(date, clockFormat, locale, _)
+{
+    let isHr12;
+    switch(clockFormat)
+    {
+      case 0: // ClockFormat._24H
+        isHr12 = false;
+        break;
+      case 1: // ClockFormat._12H
+        isHr12 = true;
+        break;
+      default: // ClockFormat.SYSTEM or fallback
+        // We can't access system settings here, so we assume a default or simple formatting
+        isHr12 = false; 
+        break;
     }
-
-    // i.e. speed > 0 && direction
-    return direction + ' ' + parseFloat(speed).toLocaleString(LOCALE) + ' ' + unit;
+    return date.toLocaleTimeString(locale, {
+      hour12: isHr12,
+      hour: "numeric",
+      minute: "numeric"
+    });
 }

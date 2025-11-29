@@ -3,7 +3,7 @@ import Gtk from "gi://Gtk";
 
 import {
   ExtensionPreferences,
-  gettext as _,
+  gettext as _
 } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 // Import preferences pages

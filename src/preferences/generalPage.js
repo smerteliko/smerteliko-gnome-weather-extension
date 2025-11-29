@@ -1,12 +1,11 @@
-
 import Adw from "gi://Adw";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk";
 
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
-import { WeatherProvider, getWeatherProviderName } from "../scripts/getweather.js";
 import { settingsGetKeys, settingsSetKeys } from "../scripts/locs.js";
+import * as Utils from "../scripts/utils.js";
 
 function getProviderTranslateRowTitle(prov)
 {
@@ -15,13 +14,13 @@ function getProviderTranslateRowTitle(prov)
 
 function getDefaultApiKeyRowSubtitle(prov)
 {
-  let name = getWeatherProviderName(prov);
+  let name = Utils.getWeatherProviderName(prov);
   return _("Use a personal API key for %s").format(name ?? _("Provider"));
 }
 
 function getDefaultApiKeyRowTooltip(prov)
 {
-  let name = getWeatherProviderName(prov);
+  let name = Utils.getWeatherProviderName(prov);
   return _("Enable this if you have your own API key from %s and enter it below."
     ).format(name ?? _("Provider"));
 }
@@ -30,14 +29,8 @@ function isValidKey(provider, key)
 {
   switch(provider)
   {
-    case WeatherProvider.OPENWEATHERMAP:
+    case Utils.WeatherProvider.OPENWEATHERMAP:
       return /^[a-z0-9]{32,}$/.test(key);
-    case WeatherProvider.WEATHERAPICOM:
-      return /^[a-z0-9]{31,}$/.test(key);
-    case WeatherProvider.VISUALCROSSING:
-      return /^[A-Z0-9]{25,}$/.test(key);
-    case WeatherProvider.OPENMETEO:
-      return true;
     default:
       return false;
   }
@@ -204,7 +197,7 @@ class GeneralPage extends Adw.PreferencesPage
     temperatureUnits.append(_("\u00B0De"));
     temperatureUnits.append(_("\u00B0N"));
     let selTempUnit = this._settings.get_enum("unit");
-    let unitIsDegs = selTempUnit !== 2;
+    let unitIsDegs = selTempUnit !== Utils.WeatherUnits.KELVIN;
     let temperatureUnitRow = new Adw.ComboRow({
       title: _("Temperature"),
       model: temperatureUnits,
@@ -227,7 +220,7 @@ class GeneralPage extends Adw.PreferencesPage
 
     // Pressure
     let pressureUnits = new Gtk.StringList();
-    // hPa
+    // hPa is index 0 in enum, but default value, so we shift by -1 for the combo box
     pressureUnits.append(_("inHg"));
     pressureUnits.append(_("bar"));
     pressureUnits.append(_("Pa"));
@@ -241,7 +234,7 @@ class GeneralPage extends Adw.PreferencesPage
     let pressureUnitRow = new Adw.ComboRow({
       title: _("Pressure"),
       model: pressureUnits,
-      selected: this._settings.get_enum("pressure-unit") - 1,
+      selected: this._settings.get_enum("pressure-unit") - 1, // Shift 0-index to enum starting at 1
     });
 
     // Clock Format
@@ -425,7 +418,7 @@ class GeneralPage extends Adw.PreferencesPage
     });
     temperatureUnitRow.connect("notify::selected", (widget) => {
       let unit = widget.selected;
-      simplifyDegSwitch.set_sensitive(unit !== 2);
+      simplifyDegSwitch.set_sensitive(unit !== Utils.WeatherUnits.KELVIN); 
       this._settings.set_enum("unit", unit);
     });
     windSpeedUnitRow.connect("notify::selected", (widget) => {

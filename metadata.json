@@ -7,7 +7,7 @@
     "46"
   ],
   "url": "https://github.com/smerteliko/smerteliko-gnome-weather-extension",
-  "version": 2,
+  "version": 3,
   "settings-schema": "org.gnome.shell.extensions.smerteliko-gnome-weather-extension",
   "gettext-domain": "smerteliko-gnome-weather-extension"
 }

@@ -1,8 +1,12 @@
-import { gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
-import { getWeatherInfo, getWeatherProviderName, weatherProviderNotWorking } from "./getweather.js";
+import {
+  gettext as _
+} from "resource:///org/gnome/shell/extensions/extension.js";
+
+import { getWeatherInfo } from "./getweather.js";
 import { getCachedLocInfo, getLocationInfo } from "./myloc.js";
+import * as Utils from "./utils.js";
 
 async function initWeatherData(refresh) {
   if (refresh) {
@@ -59,12 +63,12 @@ async function refreshWeatherData()
       let title, msg;
       if(e.name === "TooManyReqError")
       {
-        let provName = getWeatherProviderName(e.provider);
-        let tryAgain = weatherProviderNotWorking(this.settings);
+        let provName = Utils.getWeatherProviderName(e.provider);
+        let tryAgain = Utils.weatherProviderNotWorking(this.settings);
 
         if(tryAgain)
         {
-          this._provUrlButton.label = getWeatherProviderName(this.weatherProvider);
+          this._provUrlButton.label = Utils.getWeatherProviderName(this.weatherProvider);
           this.reloadWeatherCurrent(1);
         }
         else
@@ -135,19 +139,19 @@ function populateCurrentUI()
       if(sunrise.getTime() - ms > sunset.getTime() - ms)
       {
         this.topBoxSunIcon.set_gicon(this.getGIcon("daytime-sunset-symbolic"));
-        this.topBoxSunInfo.text = w.displaySunset(this);
+        this.topBoxSunInfo.text = Utils.formatTime(sunset, this.settings.get_enum("clock-format"), this.locale, _);
       }
       else
       {
         this.topBoxSunIcon.set_gicon(this.getGIcon("daytime-sunrise-symbolic"));
-        this.topBoxSunInfo.text = w.displaySunrise(this);
+        this.topBoxSunInfo.text = Utils.formatTime(sunrise, this.settings.get_enum("clock-format"), this.locale, _);
       }
 
       let weatherInfoC = "";
       let weatherInfoT = "";
 
       let condition = w.displayCondition();
-      let temp = w.displayTemperature(this);
+      let temp = w.displayTemperature(this.settings, this.locale); 
 
       if (this._comment_in_panel) weatherInfoC = condition;
       if (this._text_in_panel) weatherInfoT = temp;
@@ -170,14 +174,15 @@ function populateCurrentUI()
         locText = location;
       }
 
-      let feelsLikeText = w.displayFeelsLike(this);
+      let feelsLikeText = w.displayFeelsLike(this.settings, this.locale);
       let humidityText = w.displayHumidity();
-      let pressureText = w.displayPressure(this);
-      let windText = w.displayWind(this);
+      let pressureText = w.displayPressure(this.settings, this.locale);
+      let windText = w.displayWind(this.settings, this.locale);
 
-      this._currentWeatherSunrise.text = w.displaySunrise(this);
-      this._currentWeatherSunset.text = w.displaySunset(this);
-      this._currentWeatherBuild.text = this.formatTime(lastBuild);
+      this._currentWeatherSunrise.text = Utils.formatTime(sunrise, this.settings.get_enum("clock-format"), this.locale, _);
+      this._currentWeatherSunset.text = Utils.formatTime(sunset, this.settings.get_enum("clock-format"), this.locale, _);
+      this._currentWeatherBuild.text = Utils.formatTime(lastBuild, this.settings.get_enum("clock-format"), this.locale, _);
+
 
       if(this._currentWeatherLocation) this._currentWeatherLocation.text = locText;
       if(this._currentWeatherFeelsLike) this._currentWeatherFeelsLike.text = feelsLikeText;
@@ -190,7 +195,7 @@ function populateCurrentUI()
         this.setGustsPanelVisibility(available);
         if(available)
         {
-          this._currentWeatherWindGusts.text = w.displayGusts(this);
+          this._currentWeatherWindGusts.text = w.displayGusts(this.settings, this.locale);
         }
       }
 
@@ -221,9 +226,9 @@ function populateTodaysUI() {
         let w = h.weather();
 
         let forecastTodayUi = this._todays_forecast[i];
-        forecastTodayUi.Time.text = h.displayTime(this);
+        forecastTodayUi.Time.text = h.displayTime(this.settings.get_enum("clock-format"), this.locale);
         forecastTodayUi.Icon.set_gicon(this.getGIcon(w.getIconName()));
-        forecastTodayUi.Temperature.text = w.displayTemperature(this);
+        forecastTodayUi.Temperature.text = w.displayTemperature(this.settings, this.locale);
         forecastTodayUi.Summary.text = w.displayCondition();
       }
       resolve(0);
@@ -261,13 +266,12 @@ function populateForecastUI() {
 
             if (dayLeft === 1) forecastUi.Day.text = "\n" + _("Tomorrow");
             else
-              forecastUi.Day.text =
-                "\n" + this.getLocaleDay(forecastDate.getDay());
+              forecastUi.Day.text = "\n" + Utils.getLocaleDay(forecastDate.getDay());
           }
 
-          forecastUi[j].Time.text = h.displayTime(this);
+          forecastUi[j].Time.text = h.displayTime(this.settings.get_enum("clock-format"), this.locale);
           forecastUi[j].Icon.set_gicon(this.getGIcon(w.getIconName()));
-          forecastUi[j].Temperature.text = w.displayTemperature(this);
+          forecastUi[j].Temperature.text = w.displayTemperature(this.settings, this.locale);
           forecastUi[j].Summary.text = w.displayCondition();
         }
       }
@@ -280,22 +284,6 @@ function populateForecastUI() {
   });
 }
 
-function processTodaysData(json) {
-  return new Promise((resolve, reject) => {
-    try {
-      let data = json.list;
-      let todayList = [];
-
-      for (let i = 0; i < 4; i++) todayList.push(data[i]);
-
-      resolve(todayList);
-    } catch (e) {
-      reject(e);
-    }
-  });
-}
-
 export {
-    initWeatherData, populateCurrentUI, populateForecastUI, populateTodaysUI, refreshWeatherData, reloadWeatherCache
+  initWeatherData, populateCurrentUI, populateForecastUI, populateTodaysUI, refreshWeatherData, reloadWeatherCache
 };
-

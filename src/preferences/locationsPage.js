@@ -1,28 +1,11 @@
-/*
-   This file is part of OpenWeather (gnome-shell-extension-openweather).
-
-   OpenWeather is free software: you can redistribute it and/or modify it under the terms of
-   the GNU General Public License as published by the Free Software Foundation, either
-   version 3 of the License, or (at your option) any later version.
-
-   OpenWeather is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
-   without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-   See the GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License along with OpenWeather.
-   If not, see <https://www.gnu.org/licenses/>.
-
-   Copyright 2022 Jason Oickle
-*/
-
 import Adw from "gi://Adw";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk";
 
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
-import { GeolocationProvider } from "../scripts/constants.js";
 import { Loc, NAME_TYPE, PLACE_TYPE, settingsGetLocs, settingsSetLocs } from "../scripts/locs.js";
+import { GeolocationProvider } from '../scripts/utils.js';
 import { SearchResultsWindow } from "./searchResultsWindow.js";
 
 class LocationsPage extends Adw.PreferencesPage

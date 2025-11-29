@@ -1,7 +1,7 @@
 import GLib from "gi://GLib";
 
-import { WeatherProvider } from "./getweather.js";
 import { getCachedLocInfo, getLocationInfo } from "./myloc.js";
+import { WeatherProvider } from "./utils.js";
 
 export const NAME_TYPE = {
   CUSTOM: 0,

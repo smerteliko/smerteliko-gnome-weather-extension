@@ -5,8 +5,8 @@ import GObject from "gi://GObject";
 import St from "gi://St";
 
 import {
-    Extension,
-    gettext as _,
+  Extension,
+  gettext as _,
 } from "resource:///org/gnome/shell/extensions/extension.js";
 
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
@@ -15,32 +15,24 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import * as GnomeSession from "resource:///org/gnome/shell/misc/gnomeSession.js";
 
-import {
-    ClockFormat,
-    HiContrastStyle,
-    WeatherPosition,
-    WeatherPressureUnits,
-    WeatherUnits,
-    WeatherWindSpeedUnits
-} from "./scripts/constants.js";
 import * as OpenWeatherMap from "./scripts/openweathermap.js";
 
 import {
-    MyLocProv,
-    freeSoup,
-    geoclueGetLoc,
-    getCachedLocInfo,
-    getLocationInfo,
-    setLocationRefreshIntervalM
+  MyLocProv,
+  freeSoup,
+  geoclueGetLoc,
+  getCachedLocInfo,
+  getLocationInfo,
+  setLocationRefreshIntervalM
 } from "./scripts/myloc.js";
 
 import {
-    DEFAULT_KEYS,
-    getWeatherProvider,
-    getWeatherProviderName,
-    getWeatherProviderUrl
+  DEFAULT_KEYS,
 } from "./scripts/getweather.js";
+
 import { Loc, settingsGetKeys, settingsGetLocs, settingsSetLocs } from "./scripts/locs.js";
+
+import * as Utils from "./scripts/utils.js";
 
 let _firstBoot = 1;
 let _timeCacheCurrentWeather;
@@ -135,7 +127,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
     topBox.add_child(this.topBoxSunInfo);
   }
 
-  _init(metadata, settings) {
+  _init( metadata, settings) {
     super._init(0, "SmertelikoGnomeWeatherExtensionMenuButton", false);
     this.settings = settings;
     this.metadata = metadata;
@@ -344,7 +336,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
 
   get weatherProvider()
   {
-    return getWeatherProvider(this.settings);
+    return Utils.getWeatherProvider(this.settings);
   }
 
   useOpenWeatherMap() {
@@ -363,7 +355,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
         "Smerteliko-gnome-weather-exstension",
         _(
           "%s does not work without an api-key.\nEither set the switch to use the extensions default key in the preferences dialog to on or register at %s and paste your personal key into the preferences dialog."
-        ).format(getWeatherProviderName(this.weatherProvider), getWeatherProviderUrl(this.weatherProvider))
+        ).format(Utils.getWeatherProviderName(this.weatherProvider), Utils.getWeatherProviderUrl(this.weatherProvider))
       );
   }
 
@@ -436,9 +428,9 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
 
         if(locInfo && locInfo.countryShort === "US")
         {
-          this.settings.set_enum("unit", WeatherUnits.FAHRENHEIT);
-          this.settings.set_enum("wind-speed-unit", WeatherWindSpeedUnits.MPH);
-          this.settings.set_enum("pressure-unit", WeatherPressureUnits.INHG);
+          this.settings.set_enum("unit", Utils.WeatherUnits.FAHRENHEIT);
+          this.settings.set_enum("wind-speed-unit", Utils.WeatherWindSpeedUnits.MPH);
+          this.settings.set_enum("pressure-unit", Utils.WeatherPressureUnits.INHG);
         }
 
         let defCity = await this.getDefaultCity();
@@ -714,7 +706,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
         // We just fetch it for the rare case, where the connection changes or the extension will be stopped during
         // the timeout.
         this._timeoutCheckConnectionState = null;
-        let url = getWeatherProviderUrl(this.weatherProvider);
+        let url = Utils.getWeatherProviderUrl(this.weatherProvider);
         let address = Gio.NetworkAddress.parse_uri(url, 80);
         let cancellable = Gio.Cancellable.new();
         try {
@@ -738,7 +730,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
       this._connected = this._network_monitor.can_reach_finish(res);
     } catch (err) {
       let title = _("Can not connect to %s").format(
-        getWeatherProviderUrl(this.weatherProvider)
+        Utils.getWeatherProviderUrl(this.weatherProvider)
       );
       console.warn(title + "\n" + err.message);
       this._checkConnectionStateRetry();
@@ -821,9 +813,9 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
     let m = this.settings.get_enum("hi-contrast");
     switch(m)
     {
-      case HiContrastStyle.WHITE:
+      case Utils.HiContrastStyle.WHITE:
         return "smerteliko-gnome-weather-exstension-white";
-      case HiContrastStyle.BLACK:
+      case Utils.HiContrastStyle.BLACK:
         return "smerteliko-gnome-weather-exstension-black";
       default:
         return null;
@@ -937,20 +929,20 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
       case -2:
         switch(this._pressure_units)
         {
-          case WeatherPressureUnits.MBAR:
-          case WeatherPressureUnits.PA:
+          case Utils.WeatherPressureUnits.MBAR:
+          case Utils.WeatherPressureUnits.PA:
             return 0;
-          case WeatherPressureUnits.KPA:
-          case WeatherPressureUnits.MMHG:
-          case WeatherPressureUnits.HPA:
-          case WeatherPressureUnits.TORR:
+          case Utils.WeatherPressureUnits.KPA:
+          case Utils.WeatherPressureUnits.MMHG:
+          case Utils.WeatherPressureUnits.HPA:
+          case Utils.WeatherPressureUnits.TORR:
             return 1;
-          case WeatherPressureUnits.INHG:
-          case WeatherPressureUnits.PSI:
+          case Utils.WeatherPressureUnits.INHG:
+          case Utils.WeatherPressureUnits.PSI:
             return 2;
-          case WeatherPressureUnits.ATM:
-          case WeatherPressureUnits.AT:
-          case WeatherPressureUnits.BAR:
+          case Utils.WeatherPressureUnits.ATM:
+          case Utils.WeatherPressureUnits.AT:
+          case Utils.WeatherPressureUnits.BAR:
             return 3;
         }
       case -1:
@@ -1019,7 +1011,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
     );
     this._provUrlButton = this.createButton(
       "",
-      getWeatherProviderName(this.weatherProvider)
+      Utils.getWeatherProviderName(this.weatherProvider)
     );
     this._provUrlButton.set_label(this._provUrlButton.get_accessible_name());
     if(this.usesNominatim())
@@ -1076,7 +1068,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
     });
     this._provUrlButton.connect("clicked", () => {
       this.menu.close();
-      let url = getWeatherProviderUrl(this.weatherProvider);
+      let url = Utils.getWeatherProviderUrl(this.weatherProvider);
       this.openUrl(url);
     });
     if(this.usesNominatim())
@@ -1152,7 +1144,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
   _onPreferencesActivate() {
     this.menu.close();
     let extensionObject = Extension.lookupByUUID(
-      "smerteliko-gnome-weather-extension@psmerteliko.com"
+      "smerteliko-gnome-weather-extension@smerteliko.com"
     );
     extensionObject.openPreferences();
     return 0;
@@ -1190,95 +1182,26 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
 
   unit_to_unicode()
   {
-    if(this._units !== 2 && this._simplifyDegrees()) return "\u00B0";
-    switch(this._units)
-    {
-      case WeatherUnits.CELSIUS:
-        // Don't use U+2013 because it looks weird
-        return _("\u00B0C");
-      case WeatherUnits.FAHRENHEIT:
-        // Don't use U+2109 because it looks weird
-        return _("\u00B0F");
-      case WeatherUnits.KELVIN:
-        return _("K");
-      case WeatherUnits.RANKINE:
-        return _("\u00B0Ra");
-      case WeatherUnits.REAUMUR:
-        return _("\u00B0R\u00E9");
-      case WeatherUnits.ROEMER:
-        return _("\u00B0R\u00F8");
-      case WeatherUnits.DELISLE:
-        return _("\u00B0De");
-      case WeatherUnits.NEWTON:
-        return _("\u00B0N");
-      default:
-        console.warn("Smerteliko-gnome-weather-exstension: Invalid tempeature unit.");
-        return "\u00B0";
-    }
+    // This method needs to be called as Utils.unitToUnicode(this._units, this._simplifyDegrees())
+    if(this._units !== Utils.WeatherUnits.KELVIN && this._simplifyDegrees()) return "\u00B0";
+    return Utils.unitToUnicode(this._units, _);
   }
 
   toBeaufort(w, t) {
-    if (w < 0.3) return !t ? "0" : "(" + _("Calm") + ")";
-    else if (w >= 0.3 && w <= 1.5) return !t ? "1" : "(" + _("Light air") + ")";
-    else if (w > 1.5 && w <= 3.4)
-      return !t ? "2" : "(" + _("Light breeze") + ")";
-    else if (w > 3.4 && w <= 5.4)
-      return !t ? "3" : "(" + _("Gentle breeze") + ")";
-    else if (w > 5.4 && w <= 7.9)
-      return !t ? "4" : "(" + _("Moderate breeze") + ")";
-    else if (w > 7.9 && w <= 10.7)
-      return !t ? "5" : "(" + _("Fresh breeze") + ")";
-    else if (w > 10.7 && w <= 13.8)
-      return !t ? "6" : "(" + _("Strong breeze") + ")";
-    else if (w > 13.8 && w <= 17.1)
-      return !t ? "7" : "(" + _("Moderate gale") + ")";
-    else if (w > 17.1 && w <= 20.7)
-      return !t ? "8" : "(" + _("Fresh gale") + ")";
-    else if (w > 20.7 && w <= 24.4)
-      return !t ? "9" : "(" + _("Strong gale") + ")";
-    else if (w > 24.4 && w <= 28.4) return !t ? "10" : "(" + _("Storm") + ")";
-    else if (w > 28.4 && w <= 32.6)
-      return !t ? "11" : "(" + _("Violent storm") + ")";
-    else return !t ? "12" : "(" + _("Hurricane") + ")";
+    // This method needs to be called as Utils.toBeaufort(w, t)
+    return Utils.toBeaufort(w, t);
   }
 
   getLocaleDay(abr) {
-    let days = [
-      _("Sunday"),
-      _("Monday"),
-      _("Tuesday"),
-      _("Wednesday"),
-      _("Thursday"),
-      _("Friday"),
-      _("Saturday"),
-    ];
-    return days[abr];
+    // This method needs to be called as Utils.getLocaleDay(abr)
+    return Utils.getLocaleDay(abr);
   }
 
   getWindDirection(deg) {
-    let arrows = [
-      "\u2193",
-      "\u2199",
-      "\u2190",
-      "\u2196",
-      "\u2191",
-      "\u2197",
-      "\u2192",
-      "\u2198",
-    ];
-    let letters = [
-      _("N"),
-      _("NE"),
-      _("E"),
-      _("SE"),
-      _("S"),
-      _("SW"),
-      _("W"),
-      _("NW"),
-    ];
-    let idx = Math.round(deg / 45) % arrows.length;
-    return this._wind_direction ? arrows[idx] : letters[idx];
+    // This method needs to be called as Utils.getWindDirection(deg, this._wind_direction)
+    return Utils.getWindDirection(deg, this._wind_direction, _);
   }
+
 
   systemHasIcon(iconName)
   {
@@ -1330,18 +1253,18 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
 
       let children = null;
       switch (this._position_in_panel) {
-        case WeatherPosition.LEFT:
+        case Utils.WeatherPosition.LEFT:
           children = Main.panel._leftBox.get_children();
           Main.panel._leftBox.insert_child_at_index(this, this._position_index);
           break;
-        case WeatherPosition.CENTER:
+        case Utils.WeatherPosition.CENTER:
           children = Main.panel._centerBox.get_children();
           Main.panel._centerBox.insert_child_at_index(
             this,
             this._position_index
           );
           break;
-        case WeatherPosition.RIGHT:
+        case Utils.WeatherPosition.RIGHT:
           children = Main.panel._rightBox.get_children();
           Main.panel._rightBox.insert_child_at_index(
             this,
@@ -1357,196 +1280,51 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
 
   formatPressure(pressure)
   {
-    let pressure_unit;
-    switch (this._pressure_units)
-    {
-
-      case WeatherPressureUnits.INHG:
-        pressure *= 0.029528744;
-        pressure_unit = _("inHg");
-        break;
-
-      case WeatherPressureUnits.BAR:
-        pressure *= 0.001;
-        pressure_unit = _("bar");
-        break;
-
-      case WeatherPressureUnits.PA:
-        pressure *= 100;
-        pressure_unit = _("Pa");
-        break;
-
-      case WeatherPressureUnits.KPA:
-        pressure *= 0.1;
-        pressure_unit = _("kPa");
-        break;
-
-      case WeatherPressureUnits.ATM:
-        pressure *= 0.000986923267;
-        pressure_unit = _("atm");
-        break;
-
-      case WeatherPressureUnits.AT:
-        pressure *= 0.00101971621298;
-        pressure_unit = _("at");
-        break;
-
-      case WeatherPressureUnits.TORR:
-        pressure *= 0.750061683;
-        pressure_unit = _("Torr");
-        break;
-
-      case WeatherPressureUnits.PSI:
-        pressure *= 0.0145037738;
-        pressure_unit = _("psi");
-        break;
-
-      case WeatherPressureUnits.MMHG:
-        pressure *= 0.750061683;
-        pressure_unit = _("mmHg");
-        break;
-
-      case WeatherPressureUnits.MBAR:
-        pressure_unit = _("mbar");
-        break;
-
-      default:
-        throw new Error("Invalid pressure unit.");
-    }
-
-    return (pressure
-      .toFixed(this._pressure_decimal_places)
-      .toLocaleString(this.locale) +
-      " " + pressure_unit);
+      // Using Utils.formatPressure(pressure, units, decimalPlaces, locale)
+      return Utils.formatPressure(
+          pressure, 
+          this._pressure_units, 
+          this._pressure_decimal_places, 
+          this.locale
+      );
   }
 
   formatTemperature(tempC)
   {
-    let isDegrees = true;
-    let tLocal;
-    switch (this._units)
-    {
-      case WeatherUnits.FAHRENHEIT:
-        tLocal = tempC * 1.8 + 32;
-        break;
-
-      case WeatherUnits.CELSIUS:
-        tLocal = tempC;
-        break;
-
-      case WeatherUnits.KELVIN:
-        tLocal = tempC + 273.15;
-        isDegrees = false;
-        break;
-
-      case WeatherUnits.RANKINE:
-        tLocal = tempC * 1.8 + 491.67;
-        break;
-
-      case WeatherUnits.REAUMUR:
-        tLocal = tempC / 1.25;
-        break;
-
-      case WeatherUnits.ROEMER:
-        tLocal = tempC / 1.9047619 + 7.5;
-        break;
-
-      case WeatherUnits.DELISLE:
-        tLocal = tempC * 1.5 - 100;
-        break;
-
-      case WeatherUnits.NEWTON:
-        tLocal = tempC / 3.03030303;
-        break;
-    }
-
-    let string = tLocal.toLocaleString(this.locale, { maximumFractionDigits: this._decimal_places });
-    //
-    // turn a rounded '-0' into '0'
-    if(string === "-0") string = "0";
-
-    string = string.replace("-", "\u2212")
-
-    return string + (isDegrees ? "" : " ") + this.unit_to_unicode();
+      // Using Utils.formatTemperature(temperature, units, decimalPlaces, locale)
+      return Utils.formatTemperature(
+          tempC,
+          this._units,
+          this._decimal_places,
+          this.locale
+      );
   }
 
   formatWind(speed, direction) {
-    let conv_MPSinMPH = 2.23693629;
-    let conv_MPSinKPH = 3.6;
-    let conv_MPSinKNOTS = 1.94384449;
-    let conv_MPSinFPS = 3.2808399;
-    let unit = _("m/s");
-
-    switch (this._wind_speed_units) {
-      case WeatherWindSpeedUnits.MPH:
-        speed = (speed * conv_MPSinMPH).toFixed(this._speed_decimal_places);
-        unit = _("mph");
-        break;
-
-      case WeatherWindSpeedUnits.KPH:
-        speed = (speed * conv_MPSinKPH).toFixed(this._speed_decimal_places);
-        unit = _("km/h");
-        break;
-
-      case WeatherWindSpeedUnits.MPS:
-        speed = speed.toFixed(this._speed_decimal_places);
-        break;
-
-      case WeatherWindSpeedUnits.KNOTS:
-        speed = (speed * conv_MPSinKNOTS).toFixed(this._speed_decimal_places);
-        unit = _("kn");
-        break;
-
-      case WeatherWindSpeedUnits.FPS:
-        speed = (speed * conv_MPSinFPS).toFixed(this._speed_decimal_places);
-        unit = _("ft/s");
-        break;
-
-      case WeatherWindSpeedUnits.BEAUFORT:
-        speed = this.toBeaufort(speed);
-        unit = this.toBeaufort(speed, true);
-        break;
-    }
-
-    if (!speed) return "\u2013";
-    else if (speed === 0 || !direction)
-      return parseFloat(speed).toLocaleString(this.locale) + " " + unit;
-    // i.e. speed > 0 && direction
-    else
-      return (
-        direction +
-        " " +
-        parseFloat(speed).toLocaleString(this.locale) +
-        " " +
-        unit
+      // Using Utils.formatWind(speed, direction, decimalPlaces, speedUnits, deg, locale)
+      return Utils.formatWind(
+          speed,
+          direction,
+          this._speed_decimal_places,
+          this._wind_speed_units,
+          speed,
+          this.locale,
+          _ // The original code passed 'direction' as the second arg, which is derived from deg.
       );
   }
 
   formatTime(date)
   {
-    let isHr12;
-    switch(this.settings.get_enum("clock-format"))
-    {
-      case ClockFormat._24H:
-        isHr12 = false;
-        break;
-      case ClockFormat._12H:
-        isHr12 = true;
-        break;
-      default:
-        console.warn("Smerteliko-gnome-weather-exstension invalid clock format.");
-        // FALL THRU
-      case ClockFormat.SYSTEM:
-        isHr12 = _systemClockFormat === ClockFormat._12H;
-        break;
-    }
-    return date.toLocaleTimeString(this.locale, {
-      // 12/24 hour and hide seconds
-      hour12: isHr12,
-      hour: "numeric",
-      minute: "numeric"
-    });
+      // Using Utils.formatTime(date, clockFormat, locale)
+      return Utils.formatTime(
+          date, 
+          this.settings.get_enum("clock-format"), 
+          this.locale,
+          _
+      );
   }
+
+
 
   reloadWeatherCurrent(interval) {
     if (this._timeoutCurrent) {
@@ -1955,6 +1733,7 @@ class SmertelikoGnomeWeatherExtensionMenuButton extends PanelMenu.Button {
 export default class SmertelikoGnomeWeatherExtension extends Extension {
   enable() {
     console.log(`enabling ${this.metadata.name}`);
+    // The button class signature is now (extension, metadata, settings)
     this.SmertelikoGnomeWeatherExtensionMenu = new SmertelikoGnomeWeatherExtensionMenuButton(
       this.metadata,
       this.getSettings()
@@ -1964,8 +1743,10 @@ export default class SmertelikoGnomeWeatherExtension extends Extension {
 
   disable() {
     console.log(`disabling ${this.metadata.name}`);
-    this.SmertelikoGnomeWeatherExtensionMenu.stop();
-    this.SmertelikoGnomeWeatherExtensionMenu.destroy();
-    this.SmertelikoGnomeWeatherExtensionMenu = null;
+    if (this.SmertelikoGnomeWeatherExtensionMenu) {
+        this.SmertelikoGnomeWeatherExtensionMenu.stop();
+        this.SmertelikoGnomeWeatherExtensionMenu.destroy();
+        this.SmertelikoGnomeWeatherExtensionMenu = null;
+    }
   }
 }
